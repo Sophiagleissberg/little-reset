@@ -1,0 +1,133 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: light;
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-top: env(safe-area-inset-top, 0px);
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-paper text-ink font-sans antialiased;
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior-y: none;
+  }
+
+  /* Numbers line up in columns wherever money or time is shown. */
+  .tnum {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum' 1;
+  }
+
+  button {
+    touch-action: manipulation;
+  }
+
+  :focus-visible {
+    outline: 2px solid theme('colors.care');
+    outline-offset: 3px;
+    border-radius: 6px;
+  }
+}
+
+@layer components {
+  /* The signature detail: a ledger leader line running between a label and its
+     amount, the way a printed statement or a menu sets it. */
+  .leader {
+    flex: 1 1 auto;
+    margin: 0 0.6rem;
+    height: 1px;
+    align-self: flex-end;
+    margin-bottom: 0.42rem;
+    background-image: radial-gradient(circle, theme('colors.rule') 1px, transparent 1px);
+    background-size: 5px 1px;
+    background-repeat: repeat-x;
+  }
+
+  .eyebrow {
+    @apply text-[11px] uppercase tracking-[0.18em] text-faint font-medium;
+  }
+
+  .sheet-surface {
+    @apply bg-sheet rounded-card shadow-card;
+  }
+}
+
+/* Motion. Everything here is short, soft, and switched off on request. */
+@keyframes rise {
+  from {
+    transform: translateY(14px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slide-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.animate-rise {
+  animation: rise 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.animate-slide-up {
+  animation: slide-up 0.34s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.animate-fade-in {
+  animation: fade-in 0.24s ease-out both;
+}
+
+.tick-path {
+  stroke-dasharray: 24;
+  stroke-dashoffset: 24;
+}
+
+.tick-on .tick-path {
+  animation: draw 0.34s cubic-bezier(0.65, 0, 0.35, 1) 0.04s forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+
+  .tick-path {
+    stroke-dashoffset: 0;
+  }
+}
