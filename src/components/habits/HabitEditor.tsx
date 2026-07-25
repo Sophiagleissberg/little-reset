@@ -61,8 +61,29 @@ export function HabitEditor({ open, habit, onClose, onSave, onArchive, onRestore
   const canSave = draft.name.trim().length > 0
 
   return (
-    <Sheet open={open} onClose={onClose} title={habit ? 'Edit habit' : 'New habit'}>
-      <div className="space-y-7 pt-2">
+    <Sheet
+      open={open}
+      onClose={onClose}
+      title={habit ? 'Edit habit' : 'New habit'}
+      footer={
+        <div className="space-y-3">
+          <Button full size="lg" disabled={!canSave} onClick={() => onSave(draft)}>
+            {habit ? 'Save changes' : 'Add habit'}
+          </Button>
+          {habit && onArchive ? (
+            <Button full variant="quiet" onClick={onArchive}>
+              Archive habit
+            </Button>
+          ) : null}
+          {habit && onRestore ? (
+            <Button full variant="quiet" onClick={onRestore}>
+              Bring it back
+            </Button>
+          ) : null}
+        </div>
+      }
+    >
+      <div className="space-y-7 pt-2 pb-2">
         <Field label="What is it">
           <input
             className={inputClass}
@@ -157,22 +178,6 @@ export function HabitEditor({ open, habit, onClose, onSave, onArchive, onRestore
               </Chip>
             ))}
           </div>
-        </div>
-
-        <div className="space-y-3 pt-1">
-          <Button full size="lg" disabled={!canSave} onClick={() => onSave(draft)}>
-            {habit ? 'Save changes' : 'Add habit'}
-          </Button>
-          {habit && onArchive ? (
-            <Button full variant="quiet" onClick={onArchive}>
-              Archive habit
-            </Button>
-          ) : null}
-          {habit && onRestore ? (
-            <Button full variant="quiet" onClick={onRestore}>
-              Bring it back
-            </Button>
-          ) : null}
         </div>
       </div>
     </Sheet>
