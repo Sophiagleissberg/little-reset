@@ -7,8 +7,6 @@
     color-scheme: light;
     --safe-bottom: env(safe-area-inset-bottom, 0px);
     --safe-top: env(safe-area-inset-top, 0px);
-    --visual-viewport-height: 100dvh;
-    --visual-viewport-offset-top: 0px;
   }
 
   html,
@@ -62,8 +60,13 @@
     @apply bg-sheet rounded-card shadow-card;
   }
 
-  /* Bottom sheet shell. Browser Safari keeps the simple fixed inset behaviour;
-     iOS Home Screen PWA pins the overlay to the live visual viewport instead. */
+  /*
+   * Bottom sheet shell.
+   * Always fixed inset-0 (same as Safari). iOS standalone only tightens
+   * .sheet-panel max-height via --sheet-visible-height — never repositions
+   * the overlay with visualViewport.offsetTop (that trapped taps under an
+   * invisible scrim).
+   */
   .sheet-root {
     position: fixed;
     inset: 0;
@@ -71,6 +74,7 @@
     display: flex;
     align-items: flex-end;
     justify-content: center;
+    pointer-events: auto;
   }
 
   .sheet-scrim {
@@ -78,6 +82,7 @@
     inset: 0;
     border: 0;
     padding: 0;
+    opacity: 1;
     background: rgb(27 33 29 / 0.25);
     -webkit-backdrop-filter: blur(2px);
     backdrop-filter: blur(2px);
@@ -92,15 +97,19 @@
     max-width: 430px;
     max-height: min(92dvh, 92vh);
     overflow: hidden;
+    transform: none;
     background: theme('colors.sheet');
     border-radius: theme('borderRadius.sheet') theme('borderRadius.sheet') 0 0;
     box-shadow: theme('boxShadow.lift');
   }
 
+  /* Enter animation without fill-mode:both, so a stalled animation cannot
+     leave opacity:0 or translateY(100%) trapping touches. */
+  .sheet-panel-enter {
+    animation: sheet-slide-up 0.34s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
   .sheet-header {
-    position: sticky;
-    top: 0;
-    z-index: 10;
     flex-shrink: 0;
     padding-top: 0.75rem;
     padding-bottom: 0.25rem;
@@ -118,50 +127,39 @@
     padding: 0.75rem 1.5rem 0;
   }
 
-  .sheet-footer {
-    flex-shrink: 0;
-    padding: 0.75rem 1.5rem calc(1.5rem + var(--safe-bottom));
-    background: theme('colors.sheet');
+  /* Add Habit / Edit habit: scrollable, no visible scrollbar. */
+  .habit-editor-scroll {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
   }
 
-  /* When there is no footer, keep the previous bottom safe-area padding on the body. */
+  .habit-editor-scroll::-webkit-scrollbar {
+    display: none;
+  }
+
+  .sheet-footer {
+    flex-shrink: 0;
+    padding: 0.85rem 1.5rem calc(1.5rem + var(--safe-bottom));
+    background: theme('colors.sheet');
+    border-top: 1px solid theme('colors.rule');
+    box-shadow: 0 -8px 20px -16px rgba(27, 33, 29, 0.28);
+  }
+
+  /* Keep the last form fields clear of the pinned footer. */
+  .sheet-panel:has(.sheet-footer) .sheet-body {
+    padding-bottom: 1.25rem;
+  }
+
   .sheet-panel:not(:has(.sheet-footer)) .sheet-body {
     padding-bottom: calc(1.5rem + var(--safe-bottom));
   }
 }
 
-/* Installed PWA: pin the sheet overlay to the visual viewport (updated from JS on iOS). */
+/* iOS Home Screen only: cap the sheet to the live visible viewport height. */
 @media (display-mode: standalone), (display-mode: fullscreen) {
-  .sheet-root {
-    top: var(--visual-viewport-offset-top, 0px);
-    left: 0;
-    right: 0;
-    bottom: auto;
-    width: 100%;
-    height: var(--visual-viewport-height, 100dvh);
-    inset: auto;
+  html.is-ios-standalone .sheet-panel {
+    max-height: min(92dvh, 92vh, calc(var(--sheet-visible-height, 100dvh) * 0.92));
   }
-
-  .sheet-panel {
-    max-height: min(92%, calc(var(--visual-viewport-height, 100dvh) * 0.92));
-  }
-}
-
-/* Fallback for iOS navigator.standalone when display-mode matching is flaky. */
-html.is-standalone .sheet-root,
-html.is-ios-standalone .sheet-root {
-  top: var(--visual-viewport-offset-top, 0px);
-  left: 0;
-  right: 0;
-  bottom: auto;
-  width: 100%;
-  height: var(--visual-viewport-height, 100dvh);
-  inset: auto;
-}
-
-html.is-standalone .sheet-panel,
-html.is-ios-standalone .sheet-panel {
-  max-height: min(92%, calc(var(--visual-viewport-height, 100dvh) * 0.92));
 }
 
 /* Motion. Everything here is short, soft, and switched off on request. */
@@ -177,6 +175,15 @@ html.is-ios-standalone .sheet-panel {
 }
 
 @keyframes slide-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@keyframes sheet-slide-up {
   from {
     transform: translateY(100%);
   }

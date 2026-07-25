@@ -2,8 +2,9 @@ import { useEffect } from 'react'
 import { isIosStandalone } from '../lib/standalone'
 
 /**
- * Keeps --visual-viewport-* CSS vars in sync while a sheet is open on an iOS
- * Home Screen PWA. No-ops in Safari browser tabs so existing behaviour is preserved.
+ * While an iOS Home Screen sheet is open, expose the keyboard-aware visible
+ * height as --sheet-visible-height for max-height only. Does not move overlays
+ * or touch pointer-events / transforms on the app shell.
  */
 export function useStandaloneVisualViewport(active: boolean): void {
   useEffect(() => {
@@ -15,8 +16,9 @@ export function useStandaloneVisualViewport(active: boolean): void {
     const root = document.documentElement
 
     const sync = () => {
-      root.style.setProperty('--visual-viewport-height', `${vv.height}px`)
-      root.style.setProperty('--visual-viewport-offset-top', `${vv.offsetTop}px`)
+      // Height only — never offsetTop. Repositioning fixed overlays with
+      // offsetTop is what left an invisible full-screen scrim trapping taps.
+      root.style.setProperty('--sheet-visible-height', `${vv.height}px`)
     }
 
     const onFocusIn = (event: FocusEvent) => {
@@ -25,7 +27,8 @@ export function useStandaloneVisualViewport(active: boolean): void {
       if (target.tagName !== 'INPUT' && target.tagName !== 'TEXTAREA' && target.tagName !== 'SELECT') {
         return
       }
-      // Keep the field in view inside the sheet scroller without yanking it to the top.
+      const body = target.closest('.sheet-body')
+      if (!body) return
       window.requestAnimationFrame(() => {
         target.scrollIntoView({ block: 'nearest', inline: 'nearest' })
       })
@@ -40,8 +43,7 @@ export function useStandaloneVisualViewport(active: boolean): void {
       vv.removeEventListener('resize', sync)
       vv.removeEventListener('scroll', sync)
       window.removeEventListener('focusin', onFocusIn)
-      root.style.removeProperty('--visual-viewport-height')
-      root.style.removeProperty('--visual-viewport-offset-top')
+      root.style.removeProperty('--sheet-visible-height')
     }
   }, [active])
 }

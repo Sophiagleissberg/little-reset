@@ -14,9 +14,8 @@ export function isIosStandalone(): boolean {
   return iOS || iPadOs
 }
 
-/** Marks <html> so CSS can target installed / iOS-installed mode without JS in every component. */
+/** Marks <html> for the iOS-standalone sheet max-height rule only. */
 export function markStandaloneMode(): void {
   if (typeof document === 'undefined') return
-  if (isStandalone()) document.documentElement.classList.add('is-standalone')
   if (isIosStandalone()) document.documentElement.classList.add('is-ios-standalone')
 }

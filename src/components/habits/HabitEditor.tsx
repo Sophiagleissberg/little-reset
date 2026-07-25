@@ -65,6 +65,7 @@ export function HabitEditor({ open, habit, onClose, onSave, onArchive, onRestore
       open={open}
       onClose={onClose}
       title={habit ? 'Edit habit' : 'New habit'}
+      bodyClassName="habit-editor-scroll"
       footer={
         <div className="space-y-3">
           <Button full size="lg" disabled={!canSave} onClick={() => onSave(draft)}>
@@ -83,7 +84,7 @@ export function HabitEditor({ open, habit, onClose, onSave, onArchive, onRestore
         </div>
       }
     >
-      <div className="space-y-7 pt-2 pb-2">
+      <div className="space-y-7 pt-2">
         <Field label="What is it">
           <input
             className={inputClass}

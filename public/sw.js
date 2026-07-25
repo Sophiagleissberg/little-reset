@@ -2,7 +2,7 @@
 // Cache first for the app shell, network first fallback for everything else.
 // All user data lives in localStorage, so nothing here touches it.
 
-const CACHE = 'little-reset-v1'
+const CACHE = 'little-reset-v2'
 const SHELL = ['/', '/index.html', '/manifest.webmanifest']
 
 self.addEventListener('install', (event) => {

@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import type { AnimationEvent, ReactNode } from 'react'
+import { cx } from '../../lib/format'
 import { useStandaloneVisualViewport } from '../../hooks/useStandaloneVisualViewport'
 
 interface Props {
@@ -9,22 +10,27 @@ interface Props {
   children: ReactNode
   /** Optional pinned footer (e.g. primary actions) outside the scroll area. */
   footer?: ReactNode
+  /** Extra class names for the scrollable body (e.g. hide scrollbar). */
+  bodyClassName?: string
 }
 
-/** A bottom sheet. Tap the scrim or the handle area to close. */
-export function Sheet({ open, onClose, title, children, footer }: Props) {
+/** A bottom sheet. Tap the scrim or the handle area to close. Unmounts when closed. */
+export function Sheet({ open, onClose, title, children, footer, bodyClassName }: Props) {
   useStandaloneVisualViewport(open)
 
   useEffect(() => {
     if (!open) return
+
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()
     }
-    // Overflow lock only — avoid position:fixed + stored top on iOS standalone.
+
+    const previousOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
     window.addEventListener('keydown', onKey)
+
     return () => {
-      document.body.style.overflow = ''
+      document.body.style.overflow = previousOverflow
       window.removeEventListener('keydown', onKey)
     }
   }, [open, onClose])
@@ -33,24 +39,23 @@ export function Sheet({ open, onClose, title, children, footer }: Props) {
 
   const clearSlideTransform = (event: AnimationEvent<HTMLDivElement>) => {
     if (event.target !== event.currentTarget) return
-    // Drop the leftover translateY(0) from fill-mode so it cannot pin the sheet
-    // in a transformed layer after the iOS keyboard moves the visual viewport.
+    // Avoid leaving a transformed containing block after the enter animation.
     event.currentTarget.style.transform = 'none'
   }
 
   return (
-    <div className="sheet-root">
+    <div className="sheet-root" role="presentation">
       <button
         type="button"
         aria-label="Close"
         onClick={onClose}
-        className="sheet-scrim animate-fade-in"
+        className="sheet-scrim"
       />
       <div
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className="sheet-panel animate-slide-up"
+        className="sheet-panel sheet-panel-enter"
         onAnimationEnd={clearSlideTransform}
       >
         <div className="sheet-header">
@@ -61,7 +66,7 @@ export function Sheet({ open, onClose, title, children, footer }: Props) {
             </h2>
           ) : null}
         </div>
-        <div className="sheet-body">{children}</div>
+        <div className={cx('sheet-body', bodyClassName)}>{children}</div>
         {footer ? <div className="sheet-footer">{footer}</div> : null}
       </div>
     </div>
