@@ -11,9 +11,10 @@ interface Props {
   onStartTimer: (habit: Habit) => void
   onOpenHabits: () => void
   onOpenSpending: () => void
+  onOpenSettings: () => void
 }
 
-export function TodayScreen({ onStartTimer, onOpenHabits, onOpenSpending }: Props) {
+export function TodayScreen({ onStartTimer, onOpenHabits, onOpenSpending, onOpenSettings }: Props) {
   const { state, toggleHabit } = useStore()
   const today = todayKey()
 
@@ -25,8 +26,8 @@ export function TodayScreen({ onStartTimer, onOpenHabits, onOpenSpending }: Prop
     () => dayProgress(state.habits, state.completions),
     [state.habits, state.completions]
   )
-  const day = spentToday(state.expenses)
-  const week = spentThisWeek(state.expenses)
+  const day = spentToday(state.transactions)
+  const week = spentThisWeek(state.transactions)
 
   const line =
     progress.total === 0
@@ -40,10 +41,22 @@ export function TodayScreen({ onStartTimer, onOpenHabits, onOpenSpending }: Prop
   return (
     <div className="animate-rise">
       <header className="mb-9">
-        <p className="eyebrow">{greeting()}</p>
-        <h1 className="mt-2.5 font-display text-[34px] leading-[1.08] tracking-[-0.02em]">
-          {formatLongDate()}
-        </h1>
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="eyebrow">{greeting()}</p>
+            <h1 className="mt-2.5 font-display text-[34px] leading-[1.08] tracking-[-0.02em]">
+              {formatLongDate()}
+            </h1>
+          </div>
+          <button
+            type="button"
+            onClick={onOpenSettings}
+            aria-label="Settings"
+            className="mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-soft active:bg-white/70 active:text-ink"
+          >
+            <SettingsIcon />
+          </button>
+        </div>
       </header>
 
       <section className="mb-10">
@@ -94,7 +107,7 @@ export function TodayScreen({ onStartTimer, onOpenHabits, onOpenSpending }: Prop
               </p>
             </div>
             <p className="tnum mt-3 font-display text-[42px] leading-none tracking-[-0.02em]">
-              {moneyLoose(day)}
+              {day === 0 ? money(0) : moneyLoose(day)}
             </p>
             <p className="mt-3 text-[13px] text-soft">
               {day === 0 ? 'Nothing recorded yet today.' : 'Tap to see where it went.'}
@@ -103,5 +116,23 @@ export function TodayScreen({ onStartTimer, onOpenHabits, onOpenSpending }: Prop
         </button>
       </section>
     </div>
+  )
+}
+
+function SettingsIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"
+        stroke="currentColor"
+        strokeWidth="1.6"
+      />
+      <path
+        d="M19.4 13.5a7.6 7.6 0 0 0 .05-1.5l2.05-1.6-2-3.46-2.45.7a7.7 7.7 0 0 0-1.3-.75L15.5 2h-7l-.25 2.89c-.46.2-.9.46-1.3.75l-2.45-.7-2 3.46L4.55 12a7.6 7.6 0 0 0 0 1.5l-2.05 1.6 2 3.46 2.45-.7c.4.29.84.55 1.3.75L8.5 22h7l.25-2.89c.46-.2.9-.46 1.3-.75l2.45.7 2-3.46-2.1-1.6Z"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinejoin="round"
+      />
+    </svg>
   )
 }

@@ -1,6 +1,6 @@
-import type { AppState, Completions, Expense, Habit } from '../types'
-import { dateKey } from './date'
+import type { AppState, Completions, Habit, Transaction } from '../types'
 import { STATE_VERSION } from './constants'
+import { dateKey } from './date'
 
 function daysAgo(days: number, hour = 9, minute = 0): Date {
   const d = new Date()
@@ -109,7 +109,7 @@ function seedCompletions(): Completions {
   return out
 }
 
-const EXPENSE_SEED: Array<[number, number, Expense['category'], string, number, number]> = [
+const EXPENSE_SEED: Array<[number, number, Transaction['category'], string, number, number]> = [
   // [daysAgo, amount, category, note, hour, minute]
   [0, 5.8, 'food', 'Flat white', 8, 40],
   [0, 18.5, 'groceries', 'Milk, bread, bananas', 12, 10],
@@ -125,14 +125,18 @@ const EXPENSE_SEED: Array<[number, number, Expense['category'], string, number, 
   [6, 12, 'transport', 'Parking', 9, 5],
 ]
 
-function seedExpenses(): Expense[] {
-  return EXPENSE_SEED.map(([offset, amount, category, note, hour, minute], i) => ({
-    id: `e_seed_${i}`,
-    amount,
-    category,
-    note,
-    spentAt: daysAgo(offset, hour, minute).toISOString(),
-  }))
+function seedTransactions(): Transaction[] {
+  return EXPENSE_SEED.map(([offset, amount, category, note, hour, minute], i) => {
+    const when = daysAgo(offset, hour, minute)
+    return {
+      id: `e_seed_${i}`,
+      amount,
+      category,
+      note,
+      date: dateKey(when),
+      timestamp: when.toISOString(),
+    }
+  })
 }
 
 export function buildDemoState(): AppState {
@@ -140,6 +144,7 @@ export function buildDemoState(): AppState {
     version: STATE_VERSION,
     habits: HABITS,
     completions: seedCompletions(),
-    expenses: seedExpenses(),
+    transactions: seedTransactions(),
+    preferences: { spendingStarted: false },
   }
 }

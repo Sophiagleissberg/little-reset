@@ -20,8 +20,28 @@ export function startOfWeek(d: Date = new Date()): Date {
   return copy
 }
 
+/** Sunday end of the Monday–Sunday week containing `d`. */
+export function endOfWeek(d: Date = new Date()): Date {
+  const end = startOfWeek(d)
+  end.setDate(end.getDate() + 6)
+  end.setHours(23, 59, 59, 999)
+  return end
+}
+
 export function startOfMonth(d: Date = new Date()): Date {
   return new Date(d.getFullYear(), d.getMonth(), 1)
+}
+
+export function endOfMonth(d: Date = new Date()): Date {
+  return new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59, 999)
+}
+
+export function weekDateKeys(d: Date = new Date()): { from: string; to: string } {
+  return { from: dateKey(startOfWeek(d)), to: dateKey(endOfWeek(d)) }
+}
+
+export function monthDateKeys(d: Date = new Date()): { from: string; to: string } {
+  return { from: dateKey(startOfMonth(d)), to: dateKey(endOfMonth(d)) }
 }
 
 export function daysBetween(from: Date, to: Date): string[] {
@@ -58,8 +78,12 @@ export function formatLongDate(d: Date = new Date()): string {
   return LONG_DATE.format(d)
 }
 
-export function formatShortDate(iso: string): string {
-  return SHORT_DATE.format(new Date(iso))
+export function formatShortDate(isoOrKey: string): string {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(isoOrKey)) {
+    const [y, m, day] = isoOrKey.split('-').map(Number)
+    return SHORT_DATE.format(new Date(y, m - 1, day))
+  }
+  return SHORT_DATE.format(new Date(isoOrKey))
 }
 
 export function formatTime(iso: string): string {
@@ -83,6 +107,7 @@ export function greeting(d: Date = new Date()): string {
   return 'Good evening'
 }
 
-export function isToday(iso: string): boolean {
-  return dateKey(new Date(iso)) === todayKey()
+export function isToday(dateOrIso: string): boolean {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateOrIso)) return dateOrIso === todayKey()
+  return dateKey(new Date(dateOrIso)) === todayKey()
 }

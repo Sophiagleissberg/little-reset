@@ -1,12 +1,16 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import type { AppState, Expense, Habit } from '../types'
-import { todayKey } from '../lib/date'
+import type { AppState, Habit, Transaction } from '../types'
+import { DEMO_TRANSACTION_PREFIX } from '../lib/constants'
+import { todayKey, weekDateKeys } from '../lib/date'
 import { id } from '../lib/format'
-import { loadState, saveState } from '../lib/storage'
+import { loadState, resetStoredState, saveState } from '../lib/storage'
 
 type NewHabit = Omit<Habit, 'id' | 'archived' | 'createdAt'>
-type NewExpense = Omit<Expense, 'id' | 'spentAt'> & { spentAt?: string }
+type NewTransaction = Omit<Transaction, 'id' | 'date' | 'timestamp'> & {
+  date?: string
+  timestamp?: string
+}
 
 interface Store {
   state: AppState
@@ -16,8 +20,12 @@ interface Store {
   deleteHabit: (habitId: string) => void
   toggleHabit: (habitId: string, key?: string) => void
   completeHabit: (habitId: string) => void
-  addExpense: (input: NewExpense) => void
+  addExpense: (input: NewTransaction) => void
   deleteExpense: (expenseId: string) => void
+  deleteTodaysTransactions: () => void
+  deleteThisWeeksTransactions: () => void
+  deleteAllTransactions: () => void
+  resetApp: () => void
 }
 
 const StoreContext = createContext<Store | null>(null)
@@ -81,24 +89,66 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     })
   }, [])
 
-  const addExpense = useCallback((input: NewExpense) => {
-    setState((prev) => ({
-      ...prev,
-      expenses: [
-        ...prev.expenses,
-        {
-          id: id('e'),
-          amount: input.amount,
-          category: input.category,
-          note: input.note.trim(),
-          spentAt: input.spentAt ?? new Date().toISOString(),
-        },
-      ],
-    }))
+  const addExpense = useCallback((input: NewTransaction) => {
+    const timestamp = input.timestamp ?? new Date().toISOString()
+    const date = input.date ?? todayKey()
+    setState((prev) => {
+      const withoutDemo = prev.preferences.spendingStarted
+        ? prev.transactions
+        : prev.transactions.filter((t) => !t.id.startsWith(DEMO_TRANSACTION_PREFIX))
+
+      return {
+        ...prev,
+        preferences: { ...prev.preferences, spendingStarted: true },
+        transactions: [
+          ...withoutDemo,
+          {
+            id: id('e'),
+            amount: input.amount,
+            category: input.category,
+            note: input.note.trim(),
+            date,
+            timestamp,
+          },
+        ],
+      }
+    })
   }, [])
 
   const deleteExpense = useCallback((expenseId: string) => {
-    setState((prev) => ({ ...prev, expenses: prev.expenses.filter((e) => e.id !== expenseId) }))
+    setState((prev) => ({
+      ...prev,
+      transactions: prev.transactions.filter((e) => e.id !== expenseId),
+    }))
+  }, [])
+
+  const deleteTodaysTransactions = useCallback(() => {
+    const today = todayKey()
+    setState((prev) => ({
+      ...prev,
+      transactions: prev.transactions.filter((t) => t.date !== today),
+    }))
+  }, [])
+
+  const deleteThisWeeksTransactions = useCallback(() => {
+    const { from, to } = weekDateKeys()
+    setState((prev) => ({
+      ...prev,
+      transactions: prev.transactions.filter((t) => !(t.date >= from && t.date <= to)),
+    }))
+  }, [])
+
+  const deleteAllTransactions = useCallback(() => {
+    setState((prev) => ({
+      ...prev,
+      transactions: [],
+      preferences: { ...prev.preferences, spendingStarted: true },
+    }))
+  }, [])
+
+  const resetApp = useCallback(() => {
+    const empty = resetStoredState()
+    setState(empty)
   }, [])
 
   const value = useMemo<Store>(
@@ -112,6 +162,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       completeHabit,
       addExpense,
       deleteExpense,
+      deleteTodaysTransactions,
+      deleteThisWeeksTransactions,
+      deleteAllTransactions,
+      resetApp,
     }),
     [
       state,
@@ -123,6 +177,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       completeHabit,
       addExpense,
       deleteExpense,
+      deleteTodaysTransactions,
+      deleteThisWeeksTransactions,
+      deleteAllTransactions,
+      resetApp,
     ]
   )
 

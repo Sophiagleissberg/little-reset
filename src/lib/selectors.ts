@@ -1,5 +1,5 @@
-import type { Completions, Expense, ExpenseCategory, Habit } from '../types'
-import { dateKey, monthKeys, startOfWeek, todayKey, weekKeys } from './date'
+import type { Completions, ExpenseCategory, Habit, Transaction } from '../types'
+import { dateKey, monthDateKeys, monthKeys, todayKey, weekDateKeys, weekKeys } from './date'
 
 export function isDoneOn(completions: Completions, habitId: string, key: string): boolean {
   return (completions[key] ?? []).includes(habitId)
@@ -59,18 +59,35 @@ export function streakDays(habits: Habit[], completions: Completions): number {
   return streak
 }
 
-export function spentToday(expenses: Expense[]): number {
+function inDateRange(date: string, from: string, to: string): boolean {
+  return date >= from && date <= to
+}
+
+export function todaysTransactions(transactions: Transaction[]): Transaction[] {
   const today = todayKey()
-  return sum(expenses.filter((e) => dateKey(new Date(e.spentAt)) === today))
+  return transactions.filter((t) => t.date === today)
 }
 
-export function spentThisWeek(expenses: Expense[]): number {
-  return sum(thisWeek(expenses))
+export function thisWeek(transactions: Transaction[]): Transaction[] {
+  const { from, to } = weekDateKeys()
+  return transactions.filter((t) => inDateRange(t.date, from, to))
 }
 
-export function thisWeek(expenses: Expense[]): Expense[] {
-  const from = startOfWeek().getTime()
-  return expenses.filter((e) => new Date(e.spentAt).getTime() >= from)
+export function thisMonth(transactions: Transaction[]): Transaction[] {
+  const { from, to } = monthDateKeys()
+  return transactions.filter((t) => inDateRange(t.date, from, to))
+}
+
+export function spentToday(transactions: Transaction[]): number {
+  return sum(todaysTransactions(transactions))
+}
+
+export function spentThisWeek(transactions: Transaction[]): number {
+  return sum(thisWeek(transactions))
+}
+
+export function spentThisMonth(transactions: Transaction[]): number {
+  return sum(thisMonth(transactions))
 }
 
 export interface CategoryTotal {
@@ -79,8 +96,8 @@ export interface CategoryTotal {
   share: number
 }
 
-export function weekByCategory(expenses: Expense[]): CategoryTotal[] {
-  const week = thisWeek(expenses)
+export function weekByCategory(transactions: Transaction[]): CategoryTotal[] {
+  const week = thisWeek(transactions)
   const total = sum(week)
   const buckets = new Map<ExpenseCategory, number>()
   for (const e of week) buckets.set(e.category, (buckets.get(e.category) ?? 0) + e.amount)
@@ -93,12 +110,12 @@ export function weekByCategory(expenses: Expense[]): CategoryTotal[] {
     .sort((a, b) => b.total - a.total)
 }
 
-export function recent(expenses: Expense[], limit = 12): Expense[] {
-  return [...expenses]
-    .sort((a, b) => new Date(b.spentAt).getTime() - new Date(a.spentAt).getTime())
+export function recent(transactions: Transaction[], limit = 12): Transaction[] {
+  return [...transactions]
+    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
     .slice(0, limit)
 }
 
-function sum(list: Expense[]): number {
+function sum(list: Transaction[]): number {
   return list.reduce((acc, e) => acc + e.amount, 0)
 }

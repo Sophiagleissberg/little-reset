@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { money } from '../../lib/format'
 import { CATEGORIES } from '../../lib/reference'
-import type { Expense, ExpenseCategory } from '../../types'
+import type { ExpenseCategory, Transaction } from '../../types'
 import { Button } from '../ui/Button'
 import { Chip } from '../ui/Chip'
 import { Sheet } from '../ui/Sheet'
@@ -9,13 +9,13 @@ import { AmountPad } from './AmountPad'
 
 interface Props {
   open: boolean
-  expenses: Expense[]
+  expenses: Transaction[]
   onClose: () => void
   onSave: (input: { amount: number; category: ExpenseCategory; note: string }) => void
 }
 
 /** Whatever you reach for most often is already selected when the sheet opens. */
-function likelyCategory(expenses: Expense[]): ExpenseCategory {
+function likelyCategory(expenses: Transaction[]): ExpenseCategory {
   const counts = new Map<ExpenseCategory, number>()
   for (const e of expenses.slice(-40)) counts.set(e.category, (counts.get(e.category) ?? 0) + 1)
   let best: ExpenseCategory = 'groceries'

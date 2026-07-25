@@ -4,14 +4,15 @@ import { LedgerRow } from '../components/spending/LedgerRow'
 import { useStore } from '../hooks/useStore'
 import { isToday } from '../lib/date'
 import { money, moneyLoose } from '../lib/format'
-import { recent, spentThisWeek, spentToday, weekByCategory } from '../lib/selectors'
+import { recent, spentThisMonth, spentThisWeek, spentToday, weekByCategory } from '../lib/selectors'
 
 export function SpendingScreen() {
   const { state, deleteExpense } = useStore()
-  const day = spentToday(state.expenses)
-  const week = spentThisWeek(state.expenses)
-  const totals = useMemo(() => weekByCategory(state.expenses), [state.expenses])
-  const latest = useMemo(() => recent(state.expenses, 14), [state.expenses])
+  const day = spentToday(state.transactions)
+  const week = spentThisWeek(state.transactions)
+  const month = spentThisMonth(state.transactions)
+  const totals = useMemo(() => weekByCategory(state.transactions), [state.transactions])
+  const latest = useMemo(() => recent(state.transactions, 14), [state.transactions])
 
   return (
     <div className="animate-rise">
@@ -25,13 +26,18 @@ export function SpendingScreen() {
           <p className="eyebrow">Today</p>
           <span className="leader" aria-hidden />
           <p className="tnum font-display text-[34px] leading-none tracking-[-0.02em]">
-            {moneyLoose(day)}
+            {day === 0 ? money(0) : moneyLoose(day)}
           </p>
         </div>
         <div className="mt-4 flex items-baseline border-t border-rule pt-4">
           <p className="eyebrow">This week</p>
           <span className="leader" aria-hidden />
           <p className="tnum text-[15px]">{money(week)}</p>
+        </div>
+        <div className="mt-3 flex items-baseline">
+          <p className="eyebrow">This month</p>
+          <span className="leader" aria-hidden />
+          <p className="tnum text-[15px]">{money(month)}</p>
         </div>
       </section>
 
@@ -52,7 +58,7 @@ export function SpendingScreen() {
               <LedgerRow
                 key={expense.id}
                 expense={expense}
-                showDate={!isToday(expense.spentAt)}
+                showDate={!isToday(expense.date)}
                 onDelete={() => deleteExpense(expense.id)}
               />
             ))}

@@ -1,10 +1,10 @@
 import { formatShortDate, formatTime } from '../../lib/date'
 import { money } from '../../lib/format'
 import { categoryOf } from '../../lib/reference'
-import type { Expense } from '../../types'
+import type { Transaction } from '../../types'
 
 interface Props {
-  expense: Expense
+  expense: Transaction
   showDate?: boolean
   onDelete?: () => void
 }
@@ -23,7 +23,7 @@ export function LedgerRow({ expense, showDate, onDelete }: Props) {
         <span className="ml-3 min-w-0">
           <span className="block truncate text-[15px] text-ink">{label}</span>
           <span className="mt-1 block text-[11px] uppercase tracking-[0.14em] text-faint">
-            {showDate ? formatShortDate(expense.spentAt) : formatTime(expense.spentAt)}
+            {showDate ? formatShortDate(expense.date) : formatTime(expense.timestamp)}
             {expense.note ? ` · ${category.label}` : ''}
           </span>
         </span>
