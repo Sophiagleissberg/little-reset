@@ -1,8 +1,19 @@
-import type { AppPreferences, AppState, ExpenseCategory, Habit, Transaction } from '../types'
+import type {
+  AppPreferences,
+  AppState,
+  Completions,
+  DayCompletions,
+  ExpenseCategory,
+  Frequency,
+  Habit,
+  HabitColour,
+  Transaction,
+} from '../types'
 import { DEMO_TRANSACTION_PREFIX, STATE_VERSION, STORAGE_KEY as KEY } from './constants'
 import { dateKey } from './date'
 import { buildDemoState } from './demoData'
 import { id } from './format'
+import { clampDailyTarget } from './habits'
 
 const DEFAULT_PREFERENCES: AppPreferences = { spendingStarted: false }
 
@@ -25,8 +36,19 @@ const CATEGORIES: ExpenseCategory[] = [
   'other',
 ]
 
+const FREQUENCIES: Frequency[] = ['daily', 'weekly', 'monthly']
+const COLOURS: HabitColour[] = ['sage', 'clay', 'sky', 'plum', 'sand', 'moss']
+
 function isCategory(value: unknown): value is ExpenseCategory {
   return typeof value === 'string' && (CATEGORIES as string[]).includes(value)
+}
+
+function isFrequency(value: unknown): value is Frequency {
+  return typeof value === 'string' && (FREQUENCIES as string[]).includes(value)
+}
+
+function isColour(value: unknown): value is HabitColour {
+  return typeof value === 'string' && (COLOURS as string[]).includes(value)
 }
 
 /** Convert a legacy expense (spentAt) or partial transaction into the current shape. */
@@ -93,13 +115,76 @@ function migratePreferences(
   return { spendingStarted: hasOwnSpending }
 }
 
-function migrateHabits(parsed: Record<string, unknown>): Habit[] {
-  return Array.isArray(parsed.habits) ? (parsed.habits as Habit[]) : []
+/** Normalize a habit row; missing dailyTarget defaults to 1. */
+export function normalizeHabit(raw: unknown): Habit | null {
+  if (!raw || typeof raw !== 'object') return null
+  const row = raw as Record<string, unknown>
+  if (typeof row.id !== 'string' || !row.id) return null
+  if (typeof row.name !== 'string') return null
+
+  const timerMinutes =
+    typeof row.timerMinutes === 'number' && Number.isFinite(row.timerMinutes) && row.timerMinutes > 0
+      ? Math.floor(row.timerMinutes)
+      : null
+
+  return {
+    id: row.id,
+    name: row.name,
+    emoji: typeof row.emoji === 'string' && row.emoji ? row.emoji : '🌿',
+    colour: isColour(row.colour) ? row.colour : 'sage',
+    frequency: isFrequency(row.frequency) ? row.frequency : 'daily',
+    reminderTime: typeof row.reminderTime === 'string' && row.reminderTime ? row.reminderTime : null,
+    timerMinutes,
+    dailyTarget: clampDailyTarget(row.dailyTarget, 1),
+    archived: row.archived === true,
+    createdAt:
+      typeof row.createdAt === 'string' && row.createdAt
+        ? row.createdAt
+        : new Date().toISOString(),
+  }
 }
 
-function migrateCompletions(parsed: Record<string, unknown>): AppState['completions'] {
+function migrateHabits(parsed: Record<string, unknown>): Habit[] {
+  if (!Array.isArray(parsed.habits)) return []
+  const out: Habit[] = []
+  for (const item of parsed.habits) {
+    const habit = normalizeHabit(item)
+    if (habit) out.push(habit)
+  }
+  return out
+}
+
+/**
+ * Migrate completions to date → { habitId: count }.
+ * Legacy shape was date → habitId[] (boolean presence). Each listed id becomes count: 1.
+ */
+export function migrateCompletions(parsed: Record<string, unknown>): Completions {
   if (!parsed.completions || typeof parsed.completions !== 'object') return {}
-  return parsed.completions as AppState['completions']
+
+  const out: Completions = {}
+  for (const [date, value] of Object.entries(parsed.completions as Record<string, unknown>)) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) continue
+
+    const day: DayCompletions = {}
+
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        if (typeof item === 'string' && item) day[item] = 1
+      }
+    } else if (value && typeof value === 'object') {
+      for (const [habitId, count] of Object.entries(value as Record<string, unknown>)) {
+        if (!habitId) continue
+        if (typeof count === 'number' && Number.isFinite(count) && count > 0) {
+          day[habitId] = Math.min(99, Math.floor(count))
+        } else if (count === true) {
+          day[habitId] = 1
+        }
+      }
+    }
+
+    if (Object.keys(day).length > 0) out[date] = day
+  }
+  return out
 }
 
 /**
@@ -136,7 +221,7 @@ export function loadState(): AppState {
       preferences,
     }
 
-    // Persist migrated shape so spentAt / expenses keys do not linger.
+    // Persist migrated shape so spentAt / expenses keys / legacy completions do not linger.
     saveState(state)
     return state
   } catch {

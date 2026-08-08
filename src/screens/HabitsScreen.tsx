@@ -4,6 +4,7 @@ import type { HabitDraft } from '../components/habits/HabitEditor'
 import { Button } from '../components/ui/Button'
 import { useStore } from '../hooks/useStore'
 import { formatReminder } from '../lib/date'
+import { formatDailyTarget, habitTarget } from '../lib/habits'
 import { HABIT_COLOURS } from '../lib/reference'
 import type { Habit } from '../types'
 
@@ -95,8 +96,9 @@ function HabitCard({ habit, onEdit }: { habit: Habit; onEdit: () => void }) {
   const reminder = formatReminder(habit.reminderTime)
   const meta = [
     habit.frequency === 'daily' ? 'Daily' : habit.frequency === 'weekly' ? 'Weekly' : 'Monthly',
+    habit.frequency === 'daily' ? formatDailyTarget(habitTarget(habit)) : null,
     reminder,
-    habit.timerMinutes ? `${habit.timerMinutes} min timer` : null,
+    habit.timerMinutes ? `${habit.timerMinutes} min` : null,
   ].filter(Boolean)
 
   return (

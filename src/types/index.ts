@@ -12,6 +12,11 @@ export interface Habit {
   reminderTime: string | null
   /** Minutes. Null means this habit has no timer. */
   timerMinutes: number | null
+  /**
+   * How many times a daily habit should be done in one local day.
+   * Weekly/monthly habits ignore this and always use a single completion.
+   */
+  dailyTarget: number
   archived: boolean
   createdAt: string
 }
@@ -41,8 +46,12 @@ export interface Transaction {
 /** @deprecated Prefer Transaction. Kept as an alias for gradual rename. */
 export type Expense = Transaction
 
-/** Date key (YYYY-MM-DD) mapped to the habit ids ticked off that day. */
-export type Completions = Record<string, string[]>
+/**
+ * Completions keyed by local calendar date, then habit id → count for that day.
+ * Count is incremented in place; we do not store one record per tap.
+ */
+export type DayCompletions = Record<string, number>
+export type Completions = Record<string, DayCompletions>
 
 export interface AppPreferences {
   /** True once the user has recorded their own spending (demo seed expenses are dropped). */

@@ -5,6 +5,7 @@ import { Field, inputClass } from '../ui/Field'
 import { Sheet } from '../ui/Sheet'
 import { COLOUR_KEYS, EMOJI_CHOICES, FREQUENCIES, HABIT_COLOURS } from '../../lib/reference'
 import { cx } from '../../lib/format'
+import { clampDailyTarget } from '../../lib/habits'
 import type { Frequency, Habit, HabitColour } from '../../types'
 
 export interface HabitDraft {
@@ -14,6 +15,7 @@ export interface HabitDraft {
   frequency: Frequency
   reminderTime: string | null
   timerMinutes: number | null
+  dailyTarget: number
 }
 
 const BLANK: HabitDraft = {
@@ -23,9 +25,15 @@ const BLANK: HabitDraft = {
   frequency: 'daily',
   reminderTime: null,
   timerMinutes: null,
+  dailyTarget: 1,
 }
 
 const TIMER_CHOICES = [null, 5, 10, 15, 20, 30]
+const TARGET_PRESETS = [1, 2, 3, 5, 8] as const
+
+function targetLabel(n: number): string {
+  return n === 1 ? 'Once' : `${n} times`
+}
 
 interface Props {
   open: boolean
@@ -38,27 +46,67 @@ interface Props {
 
 export function HabitEditor({ open, habit, onClose, onSave, onArchive, onRestore }: Props) {
   const [draft, setDraft] = useState<HabitDraft>(BLANK)
+  const [customTarget, setCustomTarget] = useState(false)
 
   useEffect(() => {
     if (!open) return
-    setDraft(
-      habit
-        ? {
-            name: habit.name,
-            emoji: habit.emoji,
-            colour: habit.colour,
-            frequency: habit.frequency,
-            reminderTime: habit.reminderTime,
-            timerMinutes: habit.timerMinutes,
-          }
-        : BLANK
-    )
+    if (habit) {
+      const dailyTarget = clampDailyTarget(habit.dailyTarget, 1)
+      setDraft({
+        name: habit.name,
+        emoji: habit.emoji,
+        colour: habit.colour,
+        frequency: habit.frequency,
+        reminderTime: habit.reminderTime,
+        timerMinutes: habit.timerMinutes,
+        dailyTarget,
+      })
+      setCustomTarget(
+        habit.frequency === 'daily' && !(TARGET_PRESETS as readonly number[]).includes(dailyTarget)
+      )
+    } else {
+      setDraft(BLANK)
+      setCustomTarget(false)
+    }
   }, [open, habit])
 
   const set = <K extends keyof HabitDraft>(key: K, value: HabitDraft[K]) =>
     setDraft((d) => ({ ...d, [key]: value }))
 
   const canSave = draft.name.trim().length > 0
+  const showTarget = draft.frequency === 'daily'
+  const presetSelected = showTarget && !customTarget
+
+  const selectPreset = (n: number) => {
+    setCustomTarget(false)
+    set('dailyTarget', n)
+  }
+
+  const selectCustom = () => {
+    setCustomTarget(true)
+    setDraft((d) => ({
+      ...d,
+      dailyTarget: (TARGET_PRESETS as readonly number[]).includes(d.dailyTarget)
+        ? 2
+        : clampDailyTarget(d.dailyTarget, 2),
+    }))
+  }
+
+  const onCustomChange = (raw: string) => {
+    if (raw === '') {
+      set('dailyTarget', 2)
+      return
+    }
+    const n = Number(raw)
+    if (!Number.isFinite(n)) return
+    set('dailyTarget', clampDailyTarget(Math.max(2, n), 2))
+  }
+
+  const handleSave = () => {
+    const dailyTarget =
+      draft.frequency === 'daily' ? clampDailyTarget(draft.dailyTarget, 1) : 1
+    onSave({ ...draft, dailyTarget })
+  }
 
   return (
     <Sheet
@@ -68,7 +116,7 @@ export function HabitEditor({ open, habit, onClose, onSave, onArchive, onRestore
       bodyClassName="habit-editor-scroll"
       footer={
         <div className="space-y-3">
-          <Button full size="lg" disabled={!canSave} onClick={() => onSave(draft)}>
+          <Button full size="lg" disabled={!canSave} onClick={handleSave}>
             {habit ? 'Save changes' : 'Add habit'}
           </Button>
           {habit && onArchive ? (
@@ -146,7 +194,13 @@ export function HabitEditor({ open, habit, onClose, onSave, onArchive, onRestore
               <Chip
                 key={f.id}
                 selected={draft.frequency === f.id}
-                onClick={() => set('frequency', f.id)}
+                onClick={() => {
+                  set('frequency', f.id)
+                  if (f.id !== 'daily') {
+                    setCustomTarget(false)
+                    set('dailyTarget', 1)
+                  }
+                }}
               >
                 {f.label}
               </Chip>
@@ -156,6 +210,42 @@ export function HabitEditor({ open, habit, onClose, onSave, onArchive, onRestore
             {FREQUENCIES.find((f) => f.id === draft.frequency)?.note}
           </p>
         </div>
+
+        {showTarget ? (
+          <div>
+            <span className="eyebrow mb-3 block">Daily target</span>
+            <div className="flex flex-wrap gap-2">
+              {TARGET_PRESETS.map((n) => (
+                <Chip
+                  key={n}
+                  selected={presetSelected && draft.dailyTarget === n}
+                  onClick={() => selectPreset(n)}
+                >
+                  {targetLabel(n)}
+                </Chip>
+              ))}
+              <Chip selected={customTarget} onClick={selectCustom}>
+                Custom
+              </Chip>
+            </div>
+            {customTarget ? (
+              <div className="mt-3">
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  min={2}
+                  max={99}
+                  step={1}
+                  className={inputClass}
+                  value={draft.dailyTarget}
+                  onChange={(e) => onCustomChange(e.target.value)}
+                  aria-label="Custom daily target"
+                />
+                <p className="mt-2 text-[12px] text-faint">Whole number from 2 to 99.</p>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
 
         <Field label="Reminder time" hint="Saved with the habit as a note to yourself. Nothing pings you.">
           <input

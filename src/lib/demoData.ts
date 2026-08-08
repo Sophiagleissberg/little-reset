@@ -18,6 +18,7 @@ const HABITS: Habit[] = [
     frequency: 'daily',
     reminderTime: '07:30',
     timerMinutes: null,
+    dailyTarget: 5,
     archived: false,
     createdAt: daysAgo(24).toISOString(),
   },
@@ -29,6 +30,7 @@ const HABITS: Habit[] = [
     frequency: 'daily',
     reminderTime: '20:30',
     timerMinutes: 10,
+    dailyTarget: 1,
     archived: false,
     createdAt: daysAgo(24).toISOString(),
   },
@@ -40,6 +42,7 @@ const HABITS: Habit[] = [
     frequency: 'daily',
     reminderTime: '12:30',
     timerMinutes: 20,
+    dailyTarget: 1,
     archived: false,
     createdAt: daysAgo(18).toISOString(),
   },
@@ -51,6 +54,7 @@ const HABITS: Habit[] = [
     frequency: 'daily',
     reminderTime: '21:00',
     timerMinutes: 15,
+    dailyTarget: 1,
     archived: false,
     createdAt: daysAgo(12).toISOString(),
   },
@@ -62,6 +66,7 @@ const HABITS: Habit[] = [
     frequency: 'weekly',
     reminderTime: null,
     timerMinutes: null,
+    dailyTarget: 1,
     archived: false,
     createdAt: daysAgo(30).toISOString(),
   },
@@ -73,6 +78,7 @@ const HABITS: Habit[] = [
     frequency: 'monthly',
     reminderTime: '19:00',
     timerMinutes: null,
+    dailyTarget: 1,
     archived: false,
     createdAt: daysAgo(40).toISOString(),
   },
@@ -84,6 +90,7 @@ const HABITS: Habit[] = [
     frequency: 'daily',
     reminderTime: '06:45',
     timerMinutes: 5,
+    dailyTarget: 1,
     archived: true,
     createdAt: daysAgo(60).toISOString(),
   },
@@ -92,20 +99,20 @@ const HABITS: Habit[] = [
 function seedCompletions(): Completions {
   const out: Completions = {}
   // A believable recent history: mostly consistent, with a couple of missed days.
-  const pattern: Record<number, string[]> = {
-    1: ['h_water', 'h_stretch', 'h_read'],
-    2: ['h_water', 'h_walk'],
-    3: ['h_water', 'h_stretch', 'h_walk', 'h_read'],
-    4: ['h_water'],
-    5: ['h_water', 'h_stretch', 'h_reset'],
-    6: ['h_water', 'h_read'],
-    7: ['h_water', 'h_walk', 'h_stretch'],
+  // Counts use the new shape; water (target 5) is fully done on stronger days.
+  const pattern: Record<number, Record<string, number>> = {
+    1: { h_water: 5, h_stretch: 1, h_read: 1 },
+    2: { h_water: 3, h_walk: 1 },
+    3: { h_water: 5, h_stretch: 1, h_walk: 1, h_read: 1 },
+    4: { h_water: 2 },
+    5: { h_water: 5, h_stretch: 1, h_reset: 1 },
+    6: { h_water: 4, h_read: 1 },
+    7: { h_water: 5, h_walk: 1, h_stretch: 1 },
   }
-  for (const [offset, ids] of Object.entries(pattern)) {
-    out[dateKey(daysAgo(Number(offset)))] = ids
+  for (const [offset, counts] of Object.entries(pattern)) {
+    out[dateKey(daysAgo(Number(offset)))] = counts
   }
-  // Today starts with one easy win already ticked.
-  out[dateKey(new Date())] = ['h_water']
+  // Today starts empty so multi-target habits show 0/n.
   return out
 }
 

@@ -4,7 +4,14 @@ import { Progress } from '../components/ui/Progress'
 import { useStore } from '../hooks/useStore'
 import { formatLongDate, greeting, todayKey } from '../lib/date'
 import { moneyLoose, money } from '../lib/format'
-import { dayProgress, isDoneOn, spentThisWeek, spentToday, todaysHabits } from '../lib/selectors'
+import {
+  dayProgress,
+  getCompletionCount,
+  isDoneOn,
+  spentThisWeek,
+  spentToday,
+  todaysHabits,
+} from '../lib/selectors'
 import type { Habit } from '../types'
 
 interface Props {
@@ -15,7 +22,7 @@ interface Props {
 }
 
 export function TodayScreen({ onStartTimer, onOpenHabits, onOpenSpending, onOpenSettings }: Props) {
-  const { state, toggleHabit } = useStore()
+  const { state, toggleHabit, decrementHabit } = useStore()
   const today = todayKey()
 
   const list = useMemo(
@@ -85,8 +92,10 @@ export function TodayScreen({ onStartTimer, onOpenHabits, onOpenSpending, onOpen
               <HabitLine
                 key={habit.id}
                 habit={habit}
-                done={isDoneOn(state.completions, habit.id, today)}
+                done={isDoneOn(state.completions, habit, today)}
+                count={getCompletionCount(state.completions, habit.id, today)}
                 onToggle={() => toggleHabit(habit.id)}
+                onDecrement={() => decrementHabit(habit.id)}
                 onStartTimer={habit.timerMinutes ? () => onStartTimer(habit) : undefined}
               />
             ))}

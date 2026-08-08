@@ -1,12 +1,25 @@
 import type { Completions, ExpenseCategory, Habit, Transaction } from '../types'
 import { dateKey, monthDateKeys, monthKeys, todayKey, weekDateKeys, weekKeys } from './date'
+import { habitTarget } from './habits'
 
-export function isDoneOn(completions: Completions, habitId: string, key: string): boolean {
-  return (completions[key] ?? []).includes(habitId)
+export function getCompletionCount(
+  completions: Completions,
+  habitId: string,
+  key: string
+): number {
+  return completions[key]?.[habitId] ?? 0
 }
 
-function doneWithin(completions: Completions, habitId: string, keys: string[]): boolean {
-  return keys.some((k) => isDoneOn(completions, habitId, k))
+export function isDoneOn(
+  completions: Completions,
+  habit: Habit,
+  key: string
+): boolean {
+  return getCompletionCount(completions, habit.id, key) >= habitTarget(habit)
+}
+
+function doneWithin(completions: Completions, habit: Habit, keys: string[]): boolean {
+  return keys.some((k) => isDoneOn(completions, habit, k))
 }
 
 /**
@@ -17,10 +30,10 @@ function doneWithin(completions: Completions, habitId: string, keys: string[]): 
 export function isOnToday(habit: Habit, completions: Completions): boolean {
   if (habit.archived) return false
   const today = todayKey()
-  if (isDoneOn(completions, habit.id, today)) return true
+  if (isDoneOn(completions, habit, today)) return true
   if (habit.frequency === 'daily') return true
-  if (habit.frequency === 'weekly') return !doneWithin(completions, habit.id, weekKeys())
-  return !doneWithin(completions, habit.id, monthKeys())
+  if (habit.frequency === 'weekly') return !doneWithin(completions, habit, weekKeys())
+  return !doneWithin(completions, habit, monthKeys())
 }
 
 export function todaysHabits(habits: Habit[], completions: Completions): Habit[] {
@@ -35,7 +48,9 @@ export interface DayProgress {
 
 export function dayProgress(habits: Habit[], completions: Completions): DayProgress {
   const list = todaysHabits(habits, completions)
-  const done = list.filter((h) => isDoneOn(completions, h.id, todayKey())).length
+  const today = todayKey()
+  // Each habit contributes at most one to overall progress, even with a target > 1.
+  const done = list.filter((h) => isDoneOn(completions, h, today)).length
   return { done, total: list.length, ratio: list.length === 0 ? 0 : done / list.length }
 }
 
@@ -47,8 +62,7 @@ export function streakDays(habits: Habit[], completions: Completions): number {
   const cursor = new Date()
   for (let i = 0; i < 365; i += 1) {
     const key = dateKey(cursor)
-    const ticked = completions[key] ?? []
-    const all = active.every((h) => ticked.includes(h.id))
+    const all = active.every((h) => isDoneOn(completions, h, key))
     if (all) {
       streak += 1
     } else if (i > 0) {

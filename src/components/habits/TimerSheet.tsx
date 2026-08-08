@@ -1,5 +1,6 @@
 import { useTimer } from '../../hooks/useTimer'
 import { clockFace } from '../../lib/format'
+import { habitTarget } from '../../lib/habits'
 import { HABIT_COLOURS } from '../../lib/reference'
 import type { Habit } from '../../types'
 import { Button } from '../ui/Button'
@@ -35,6 +36,7 @@ function TimerBody({
   const colour = HABIT_COLOURS[habit.colour]
   const timer = useTimer(minutes, () => onFinish(habit.id))
   const offset = CIRCUMFERENCE * (1 - timer.progress)
+  const multi = habitTarget(habit) > 1
 
   return (
     <Sheet open onClose={onClose}>
@@ -107,8 +109,12 @@ function TimerBody({
 
         <p className="mt-6 text-[12px] text-faint">
           {timer.status === 'finished'
-            ? 'Ticked off for today.'
-            : 'Finishing the timer ticks this off for you.'}
+            ? multi
+              ? 'Counted toward today.'
+              : 'Ticked off for today.'
+            : multi
+              ? 'Finishing the timer counts as one.'
+              : 'Finishing the timer ticks this off for you.'}
         </p>
       </div>
     </Sheet>
