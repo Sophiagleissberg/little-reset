@@ -4,9 +4,9 @@ import { Chip } from '../ui/Chip'
 import { Field, inputClass } from '../ui/Field'
 import { Sheet } from '../ui/Sheet'
 import { COLOUR_KEYS, EMOJI_CHOICES, FREQUENCIES, HABIT_COLOURS } from '../../lib/reference'
-import { cx } from '../../lib/format'
+import { cx, id } from '../../lib/format'
 import { clampDailyTarget } from '../../lib/habits'
-import type { Frequency, Habit, HabitColour } from '../../types'
+import type { Frequency, Habit, HabitColour, HabitSubtask } from '../../types'
 
 export interface HabitDraft {
   name: string
@@ -16,6 +16,7 @@ export interface HabitDraft {
   reminderTime: string | null
   timerMinutes: number | null
   dailyTarget: number
+  subtasks: HabitSubtask[]
 }
 
 const BLANK: HabitDraft = {
@@ -26,6 +27,7 @@ const BLANK: HabitDraft = {
   reminderTime: null,
   timerMinutes: null,
   dailyTarget: 1,
+  subtasks: [],
 }
 
 const TIMER_CHOICES = [null, 5, 10, 15, 20, 30]
@@ -52,6 +54,7 @@ export function HabitEditor({ open, habit, onClose, onSave, onArchive, onRestore
     if (!open) return
     if (habit) {
       const dailyTarget = clampDailyTarget(habit.dailyTarget, 1)
+      const subtasks = (habit.subtasks ?? []).map((s) => ({ id: s.id, title: s.title }))
       setDraft({
         name: habit.name,
         emoji: habit.emoji,
@@ -60,9 +63,12 @@ export function HabitEditor({ open, habit, onClose, onSave, onArchive, onRestore
         reminderTime: habit.reminderTime,
         timerMinutes: habit.timerMinutes,
         dailyTarget,
+        subtasks,
       })
       setCustomTarget(
-        habit.frequency === 'daily' && !(TARGET_PRESETS as readonly number[]).includes(dailyTarget)
+        habit.frequency === 'daily' &&
+          subtasks.length === 0 &&
+          !(TARGET_PRESETS as readonly number[]).includes(dailyTarget)
       )
     } else {
       setDraft(BLANK)
@@ -75,14 +81,18 @@ export function HabitEditor({ open, habit, onClose, onSave, onArchive, onRestore
 
   const canSave = draft.name.trim().length > 0
   const showTarget = draft.frequency === 'daily'
-  const presetSelected = showTarget && !customTarget
+  const hasDraftSteps = draft.subtasks.length > 0
+  const quantityLocked = showTarget && draft.dailyTarget > 1
+  const presetSelected = showTarget && !customTarget && !hasDraftSteps
 
   const selectPreset = (n: number) => {
+    if (hasDraftSteps && n > 1) return
     setCustomTarget(false)
     set('dailyTarget', n)
   }
 
   const selectCustom = () => {
+    if (hasDraftSteps) return
     setCustomTarget(true)
     setDraft((d) => ({
       ...d,
@@ -102,10 +112,46 @@ export function HabitEditor({ open, habit, onClose, onSave, onArchive, onRestore
     set('dailyTarget', clampDailyTarget(Math.max(2, n), 2))
   }
 
+  const addSubtask = () => {
+    if (quantityLocked) return
+    setCustomTarget(false)
+    setDraft((d) => ({
+      ...d,
+      dailyTarget: 1,
+      subtasks: [...d.subtasks, { id: id('st'), title: '' }],
+    }))
+  }
+
+  const updateSubtask = (subtaskId: string, title: string) => {
+    setDraft((d) => ({
+      ...d,
+      subtasks: d.subtasks.map((s) => (s.id === subtaskId ? { ...s, title } : s)),
+    }))
+  }
+
+  const removeSubtask = (subtaskId: string) => {
+    setDraft((d) => ({ ...d, subtasks: d.subtasks.filter((s) => s.id !== subtaskId) }))
+  }
+
   const handleSave = () => {
+    if (showTarget && draft.dailyTarget > 1) {
+      onSave({
+        ...draft,
+        dailyTarget: clampDailyTarget(draft.dailyTarget, 1),
+        subtasks: habit?.subtasks ?? [],
+      })
+      return
+    }
+    const subtasks = draft.subtasks
+      .map((s) => ({ id: s.id, title: s.title.trim() }))
+      .filter((s) => s.title.length > 0)
     const dailyTarget =
-      draft.frequency === 'daily' ? clampDailyTarget(draft.dailyTarget, 1) : 1
-    onSave({ ...draft, dailyTarget })
+      subtasks.length > 0
+        ? 1
+        : draft.frequency === 'daily'
+          ? clampDailyTarget(draft.dailyTarget, 1)
+          : 1
+    onSave({ ...draft, dailyTarget, subtasks })
   }
 
   return (
@@ -215,20 +261,25 @@ export function HabitEditor({ open, habit, onClose, onSave, onArchive, onRestore
           <div>
             <span className="eyebrow mb-3 block">Daily target</span>
             <div className="flex flex-wrap gap-2">
-              {TARGET_PRESETS.map((n) => (
+              {(hasDraftSteps ? ([1] as const) : TARGET_PRESETS).map((n) => (
                 <Chip
                   key={n}
-                  selected={presetSelected && draft.dailyTarget === n}
+                  selected={(hasDraftSteps || presetSelected) && draft.dailyTarget === n}
                   onClick={() => selectPreset(n)}
                 >
                   {targetLabel(n)}
                 </Chip>
               ))}
-              <Chip selected={customTarget} onClick={selectCustom}>
-                Custom
-              </Chip>
+              {hasDraftSteps ? null : (
+                <Chip selected={customTarget} onClick={selectCustom}>
+                  Custom
+                </Chip>
+              )}
             </div>
-            {customTarget ? (
+            {hasDraftSteps ? (
+              <p className="mt-2.5 text-[12px] text-faint">Done when every step is ticked.</p>
+            ) : null}
+            {customTarget && !hasDraftSteps ? (
               <div className="mt-3">
                 <input
                   type="number"
@@ -246,6 +297,46 @@ export function HabitEditor({ open, habit, onClose, onSave, onArchive, onRestore
             ) : null}
           </div>
         ) : null}
+
+        <div>
+          <span className="eyebrow mb-3 block">Subtasks</span>
+          {quantityLocked ? (
+            <p className="text-[12px] text-faint">
+              Steps aren't available while a daily target is more than once.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {draft.subtasks.map((s, index) => (
+                <div key={s.id} className="flex items-center gap-2">
+                  <input
+                    className={inputClass}
+                    value={s.title}
+                    placeholder={index === 0 ? 'Take vitamins' : 'Another step'}
+                    aria-label={`Subtask ${index + 1}`}
+                    onChange={(e) => updateSubtask(s.id, e.target.value)}
+                  />
+                  <button
+                    type="button"
+                    aria-label={s.title.trim() ? `Remove ${s.title.trim()}` : 'Remove subtask'}
+                    onClick={() => removeSubtask(s.id)}
+                    className="grid h-12 w-12 shrink-0 place-items-center rounded-full text-soft active:bg-white/70 active:scale-95"
+                  >
+                    <span className="text-[22px] leading-none" aria-hidden>
+                      ×
+                    </span>
+                  </button>
+                </div>
+              ))}
+              <button
+                type="button"
+                onClick={addSubtask}
+                className="flex h-11 items-center text-[13px] font-medium text-soft active:text-ink"
+              >
+                Add subtask
+              </button>
+            </div>
+          )}
+        </div>
 
         <Field label="Reminder time" hint="Saved with the habit as a note to yourself. Nothing pings you.">
           <input

@@ -1,10 +1,10 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import type { AppState, Completions, DayCompletions, Habit, Transaction } from '../types'
+import type { AppState, Completions, DayCompletions, Habit, SubtaskCompletions, SubtaskDayCompletions, Transaction } from '../types'
 import { DEMO_TRANSACTION_PREFIX } from '../lib/constants'
 import { todayKey, weekDateKeys } from '../lib/date'
 import { id } from '../lib/format'
-import { clampDailyTarget, habitTarget } from '../lib/habits'
+import { clampDailyTarget, habitHasSubtasks, habitTarget, listedSubtasks, sanitizeSubtasks } from '../lib/habits'
 import { loadState, resetStoredState, saveState } from '../lib/storage'
 
 type NewHabit = Omit<Habit, 'id' | 'archived' | 'createdAt'>
@@ -19,10 +19,11 @@ interface Store {
   updateHabit: (habitId: string, patch: Partial<Habit>) => void
   setArchived: (habitId: string, archived: boolean) => void
   deleteHabit: (habitId: string) => void
-  /** Target-1: toggle. Target>1: increment by one (capped). */
+  /** Target-1: toggle. Target>1: increment by one (capped). No-op for checklist habits. */
   toggleHabit: (habitId: string, key?: string) => void
   decrementHabit: (habitId: string, key?: string) => void
   completeHabit: (habitId: string) => void
+  toggleSubtask: (habitId: string, subtaskId: string, key?: string) => void
   addExpense: (input: NewTransaction) => void
   deleteExpense: (expenseId: string) => void
   deleteTodaysTransactions: () => void
@@ -53,12 +54,66 @@ function setDayCount(
   return { ...completions, [key]: day }
 }
 
+function setSubtaskFlag(
+  store: SubtaskCompletions,
+  key: string,
+  habitId: string,
+  subtaskId: string,
+  done: boolean
+): SubtaskCompletions {
+  const day: SubtaskDayCompletions = { ...(store[key] ?? {}) }
+  const steps: Record<string, true> = { ...(day[habitId] ?? {}) }
+  if (done) steps[subtaskId] = true
+  else delete steps[subtaskId]
+
+  if (Object.keys(steps).length === 0) delete day[habitId]
+  else day[habitId] = steps
+
+  if (Object.keys(day).length === 0) {
+    const next = { ...store }
+    delete next[key]
+    return next
+  }
+  return { ...store, [key]: day }
+}
+
+function allListedSubtasksDone(
+  habit: Habit,
+  store: SubtaskCompletions,
+  key: string
+): boolean {
+  const list = listedSubtasks(habit)
+  if (list.length === 0) return false
+  const steps = store[key]?.[habit.id] ?? {}
+  return list.every((s) => steps[s.id] === true)
+}
+
+function pruneHabitSubtasks(store: SubtaskCompletions, habitId: string): SubtaskCompletions {
+  const out: SubtaskCompletions = {}
+  for (const [key, day] of Object.entries(store)) {
+    if (!(habitId in day)) {
+      out[key] = day
+      continue
+    }
+    const nextDay = { ...day }
+    delete nextDay[habitId]
+    if (Object.keys(nextDay).length > 0) out[key] = nextDay
+  }
+  return out
+}
+
 function normalizeIncomingHabit(input: NewHabit | Partial<Habit>): Partial<Habit> {
   const next = { ...input }
+  if ('subtasks' in next) {
+    next.subtasks = sanitizeSubtasks(next.subtasks)
+  }
   if ('dailyTarget' in next) {
     next.dailyTarget = clampDailyTarget(next.dailyTarget, 1)
   }
   if (next.frequency && next.frequency !== 'daily') {
+    next.dailyTarget = 1
+  }
+  if (next.subtasks && next.subtasks.length > 0) {
     next.dailyTarget = 1
   }
   return next
@@ -80,6 +135,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         {
           ...normalized,
           dailyTarget: clampDailyTarget(normalized.dailyTarget, 1),
+          subtasks: sanitizeSubtasks(normalized.subtasks),
           id: id('h'),
           archived: false,
           createdAt: new Date().toISOString(),
@@ -96,11 +152,23 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       if (!updated) return { ...prev, habits }
 
       // If the target was lowered below today's count, cap today's displayed count.
+      // Checklist habits derive the parent tick from today's subtask progress.
       const key = todayKey()
-      const target = habitTarget(updated)
-      const current = prev.completions[key]?.[habitId] ?? 0
-      const completions =
-        current > target ? setDayCount(prev.completions, key, habitId, target) : prev.completions
+      const subtaskCompletions = prev.subtaskCompletions ?? {}
+      let completions = prev.completions
+      if (habitHasSubtasks(updated)) {
+        const nextCount = allListedSubtasksDone(updated, subtaskCompletions, key) ? 1 : 0
+        const current = prev.completions[key]?.[habitId] ?? 0
+        if (current !== nextCount) {
+          completions = setDayCount(prev.completions, key, habitId, nextCount)
+        }
+      } else {
+        const target = habitTarget(updated)
+        const current = prev.completions[key]?.[habitId] ?? 0
+        if (current > target) {
+          completions = setDayCount(prev.completions, key, habitId, target)
+        }
+      }
 
       return { ...prev, habits, completions }
     })
@@ -125,7 +193,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         delete nextDay[habitId]
         if (Object.keys(nextDay).length > 0) completions[key] = nextDay
       }
-      return { ...prev, habits: prev.habits.filter((h) => h.id !== habitId), completions }
+      return {
+        ...prev,
+        habits: prev.habits.filter((h) => h.id !== habitId),
+        completions,
+        subtaskCompletions: pruneHabitSubtasks(prev.subtaskCompletions ?? {}, habitId),
+      }
     })
   }, [])
 
@@ -133,6 +206,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setState((prev) => {
       const habit = prev.habits.find((h) => h.id === habitId)
       if (!habit) return prev
+      if (habitHasSubtasks(habit)) return prev
       const target = habitTarget(habit)
       const current = prev.completions[key]?.[habitId] ?? 0
 
@@ -151,6 +225,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const decrementHabit = useCallback((habitId: string, key = todayKey()) => {
     setState((prev) => {
+      const habit = prev.habits.find((h) => h.id === habitId)
+      if (habit && habitHasSubtasks(habit)) return prev
       const current = prev.completions[key]?.[habitId] ?? 0
       if (current <= 0) return prev
       return {
@@ -164,6 +240,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setState((prev) => {
       const habit = prev.habits.find((h) => h.id === habitId)
       if (!habit) return prev
+      if (habitHasSubtasks(habit)) return prev
       const key = todayKey()
       const target = habitTarget(habit)
       const current = prev.completions[key]?.[habitId] ?? 0
@@ -171,6 +248,25 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       return {
         ...prev,
         completions: setDayCount(prev.completions, key, habitId, current + 1),
+      }
+    })
+  }, [])
+
+  const toggleSubtask = useCallback((habitId: string, subtaskId: string, key = todayKey()) => {
+    setState((prev) => {
+      const habit = prev.habits.find((h) => h.id === habitId)
+      if (!habit || !habitHasSubtasks(habit)) return prev
+      if (!listedSubtasks(habit).some((s) => s.id === subtaskId)) return prev
+
+      const store = prev.subtaskCompletions ?? {}
+      const currentlyDone = store[key]?.[habitId]?.[subtaskId] === true
+      const subtaskCompletions = setSubtaskFlag(store, key, habitId, subtaskId, !currentlyDone)
+      const nextCount = allListedSubtasksDone(habit, subtaskCompletions, key) ? 1 : 0
+
+      return {
+        ...prev,
+        subtaskCompletions,
+        completions: setDayCount(prev.completions, key, habitId, nextCount),
       }
     })
   }, [])
@@ -247,6 +343,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       toggleHabit,
       decrementHabit,
       completeHabit,
+      toggleSubtask,
       addExpense,
       deleteExpense,
       deleteTodaysTransactions,
@@ -263,6 +360,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       toggleHabit,
       decrementHabit,
       completeHabit,
+      toggleSubtask,
       addExpense,
       deleteExpense,
       deleteTodaysTransactions,

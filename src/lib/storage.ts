@@ -7,13 +7,15 @@ import type {
   Frequency,
   Habit,
   HabitColour,
+  SubtaskCompletions,
+  SubtaskDayCompletions,
   Transaction,
 } from '../types'
 import { DEMO_TRANSACTION_PREFIX, STATE_VERSION, STORAGE_KEY as KEY } from './constants'
 import { dateKey } from './date'
 import { buildDemoState } from './demoData'
 import { id } from './format'
-import { clampDailyTarget } from './habits'
+import { clampDailyTarget, sanitizeSubtasks } from './habits'
 
 const DEFAULT_PREFERENCES: AppPreferences = { spendingStarted: false }
 
@@ -21,6 +23,7 @@ export const EMPTY_STATE: AppState = {
   version: STATE_VERSION,
   habits: [],
   completions: {},
+  subtaskCompletions: {},
   transactions: [],
   preferences: { ...DEFAULT_PREFERENCES },
 }
@@ -115,7 +118,7 @@ function migratePreferences(
   return { spendingStarted: hasOwnSpending }
 }
 
-/** Normalize a habit row; missing dailyTarget defaults to 1. */
+/** Normalize a habit row; missing dailyTarget defaults to 1, missing subtasks to []. */
 export function normalizeHabit(raw: unknown): Habit | null {
   if (!raw || typeof raw !== 'object') return null
   const row = raw as Record<string, unknown>
@@ -136,6 +139,7 @@ export function normalizeHabit(raw: unknown): Habit | null {
     reminderTime: typeof row.reminderTime === 'string' && row.reminderTime ? row.reminderTime : null,
     timerMinutes,
     dailyTarget: clampDailyTarget(row.dailyTarget, 1),
+    subtasks: sanitizeSubtasks(row.subtasks),
     archived: row.archived === true,
     createdAt:
       typeof row.createdAt === 'string' && row.createdAt
@@ -188,6 +192,35 @@ export function migrateCompletions(parsed: Record<string, unknown>): Completions
 }
 
 /**
+ * Missing field → {}. Corrupt rows are skipped. Previous days are kept.
+ */
+export function migrateSubtaskCompletions(parsed: Record<string, unknown>): SubtaskCompletions {
+  if (!parsed.subtaskCompletions || typeof parsed.subtaskCompletions !== 'object') return {}
+
+  const out: SubtaskCompletions = {}
+  for (const [date, value] of Object.entries(
+    parsed.subtaskCompletions as Record<string, unknown>
+  )) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) continue
+    if (!value || typeof value !== 'object' || Array.isArray(value)) continue
+
+    const day: SubtaskDayCompletions = {}
+    for (const [habitId, steps] of Object.entries(value as Record<string, unknown>)) {
+      if (!habitId || !steps || typeof steps !== 'object' || Array.isArray(steps)) continue
+      const done: Record<string, true> = {}
+      for (const [subtaskId, flag] of Object.entries(steps as Record<string, unknown>)) {
+        if (!subtaskId) continue
+        if (flag === true || flag === 1) done[subtaskId] = true
+      }
+      if (Object.keys(done).length > 0) day[habitId] = done
+    }
+
+    if (Object.keys(day).length > 0) out[date] = day
+  }
+  return out
+}
+
+/**
  * Reads state from localStorage.
  * - Missing key → first launch, seed demo once.
  * - Present key (even empty arrays) → migrate and keep user data; never re-seed.
@@ -217,6 +250,7 @@ export function loadState(): AppState {
       version: STATE_VERSION,
       habits: migrateHabits(parsed),
       completions: migrateCompletions(parsed),
+      subtaskCompletions: migrateSubtaskCompletions(parsed),
       transactions: cleaned,
       preferences,
     }

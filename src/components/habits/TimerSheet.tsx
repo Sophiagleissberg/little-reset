@@ -1,6 +1,6 @@
 import { useTimer } from '../../hooks/useTimer'
 import { clockFace } from '../../lib/format'
-import { habitTarget } from '../../lib/habits'
+import { habitHasSubtasks, habitTarget } from '../../lib/habits'
 import { HABIT_COLOURS } from '../../lib/reference'
 import type { Habit } from '../../types'
 import { Button } from '../ui/Button'
@@ -109,12 +109,16 @@ function TimerBody({
 
         <p className="mt-6 text-[12px] text-faint">
           {timer.status === 'finished'
-            ? multi
-              ? 'Counted toward today.'
-              : 'Ticked off for today.'
-            : multi
-              ? 'Finishing the timer counts as one.'
-              : 'Finishing the timer ticks this off for you.'}
+            ? habitHasSubtasks(habit)
+              ? 'The timer is done. Tick the steps on Today when you are ready.'
+              : multi
+                ? 'Counted toward today.'
+                : 'Ticked off for today.'
+            : habitHasSubtasks(habit)
+              ? 'Finishing the timer does not tick the steps for you.'
+              : multi
+                ? 'Finishing the timer counts as one.'
+                : 'Finishing the timer ticks this off for you.'}
         </p>
       </div>
     </Sheet>

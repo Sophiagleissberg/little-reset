@@ -1,4 +1,4 @@
-import type { Completions, ExpenseCategory, Habit, Transaction } from '../types'
+import type { Completions, ExpenseCategory, Habit, SubtaskCompletions, Transaction } from '../types'
 import { dateKey, monthDateKeys, monthKeys, todayKey, weekDateKeys, weekKeys } from './date'
 import { habitTarget } from './habits'
 
@@ -8,6 +8,15 @@ export function getCompletionCount(
   key: string
 ): number {
   return completions[key]?.[habitId] ?? 0
+}
+
+export function isSubtaskDoneOn(
+  subtaskCompletions: SubtaskCompletions,
+  habitId: string,
+  subtaskId: string,
+  key: string
+): boolean {
+  return subtaskCompletions?.[key]?.[habitId]?.[subtaskId] === true
 }
 
 export function isDoneOn(

@@ -8,6 +8,7 @@ import {
   dayProgress,
   getCompletionCount,
   isDoneOn,
+  isSubtaskDoneOn,
   spentThisWeek,
   spentToday,
   todaysHabits,
@@ -22,7 +23,7 @@ interface Props {
 }
 
 export function TodayScreen({ onStartTimer, onOpenHabits, onOpenSpending, onOpenSettings }: Props) {
-  const { state, toggleHabit, decrementHabit } = useStore()
+  const { state, toggleHabit, decrementHabit, toggleSubtask } = useStore()
   const today = todayKey()
 
   const list = useMemo(
@@ -96,6 +97,12 @@ export function TodayScreen({ onStartTimer, onOpenHabits, onOpenSpending, onOpen
                 count={getCompletionCount(state.completions, habit.id, today)}
                 onToggle={() => toggleHabit(habit.id)}
                 onDecrement={() => decrementHabit(habit.id)}
+                completedSubtaskIds={(habit.subtasks ?? [])
+                  .filter((s) =>
+                    isSubtaskDoneOn(state.subtaskCompletions, habit.id, s.id, today)
+                  )
+                  .map((s) => s.id)}
+                onToggleSubtask={(subtaskId) => toggleSubtask(habit.id, subtaskId)}
                 onStartTimer={habit.timerMinutes ? () => onStartTimer(habit) : undefined}
               />
             ))}
